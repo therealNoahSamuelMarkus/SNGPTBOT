@@ -1,6 +1,9 @@
-# SNGPTBOT
+# **SNGPTBOT**
 
-**Description of the Project**
+## Description of the Project
+
+
+
 This project aims to build a ChatGPT-powered virtual IT service desk agent that integrates directly into a ServiceNow instance. The core goal is to enhance self-service IT support by enabling users to ask natural language questions and receive accurate, context-aware responses based on company-specific knowledge base (KB) articles.
 
 Key Features:
@@ -23,7 +26,10 @@ Enhances user experience with fast, conversational support tailored to the compa
 
 Ensures data security by maintaining strict adherence to existing KB access rules.
 
-**Resources to Use**
+## Resources to Use
+
+
+
 OpenAI API: For natural language understanding and generation (ChatGPT, GPT-4).
 
 ServiceNow REST API: To query KB articles, user session info, and validate access permissions.
@@ -46,7 +52,10 @@ ServiceNow Studio for platform-side development.
 
 Prior experience from lab assignments involving REST APIs, secure auth, and chatbot frameworks.
 
-**Deliverables**
+## Deliverables
+
+
+
 Live Demo of the chatbot running inside a ServiceNow instance, demonstrating real-time responses and article citation.
 
 GitHub Code Repository with full source code, README documentation, and deployment instructions.
