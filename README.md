@@ -4,7 +4,7 @@
 
 
 
-This project aims to build a ChatGPT-powered virtual IT service desk agent that integrates directly into a ServiceNow instance. The core goal is to enhance self-service IT support by enabling users to ask natural language questions and receive accurate, context-aware responses based on company-specific knowledge base (KB) articles.
+This project aims to build a ChatGPT-powered virtual IT service desk agent that integrates directly into a ServiceNow instance. The core goal is to enhance self-service IT support by enabling users to ask natural language questions and receive accurate, context-aware responses based on company-specific knowledge base (KB) articles. This is to be a solution to an issue we have at the company that I will be working for after graduation
 
 Key Features:
 
@@ -18,13 +18,10 @@ Citations in Responses: The agent cites the knowledge base articles it draws fro
 
 Live in ServiceNow: Designed to live within the ServiceNow platform, appearing as a virtual support assistant available on the portal or via a chat interface.
 
-Innovation & Impact:
+**Innovation & Impact:
+**
+This could also directly benefit the company I will be working for after graduation. I have learned during my time as an intern there, the Service Desk gets tons of time wasting issues that would be answered if the user looked in our KB. I figure that if people have questions like how do I reset my network password, they could ask a GPT with KB intelligence rather than wasting the Service desk’s time and resources.
 
-Reduces workload for human IT staff by automating responses to repetitive and common queries.
-
-Enhances user experience with fast, conversational support tailored to the company’s actual IT documentation.
-
-Ensures data security by maintaining strict adherence to existing KB access rules.
 
 ## Resources to Use
 
