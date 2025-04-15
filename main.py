@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify, render_template
 from servicenow_api import query_kb_articles, open_ticket, close_ticket
 from gpt_agent import generate_response
 from auth import get_user_permissions
+from dotenv import load_dotenv
+load_dotenv()
+
 
 app = Flask(__name__)
 
