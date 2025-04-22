@@ -1,8 +1,6 @@
 import streamlit as st
 from servicenow_api import query_kb_articles, load_servicenow_data, get_user_context
-from auth import get_user_permissions
-from gpt_agent import generate_response
-from ticket_bot import create_ticket_from_intent
+from gpt_agent import generate_response, create_ticket_from_intent
 
 st.set_page_config(page_title="IT Assistant", layout="centered")
 st.title("💼 IT Support Assistant")
