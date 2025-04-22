@@ -1,38 +1,168 @@
 import os
-from dotenv import load_dotenv
-load_dotenv()
-
-def query_kb_articles(query, permissions):
-    all_articles = [
-        {"id": "KB001", "title": "Reset Network Password", "content": "To reset your password..."},
-        {"id": "KB002", "title": "VPN Connection Troubleshooting", "content": "If you have trouble connecting..."}
-    ]
-    return [a for a in all_articles if a['id'] in permissions and query.lower() in a['content'].lower()]
-
 import requests
 from requests.auth import HTTPBasicAuth
 
-def open_ticket(user_id, issue_description):
+def load_servicenow_data():
+    instance = os.getenv("SN_INSTANCE")
+    auth = (os.getenv("SN_USERNAME"), os.getenv("SN_PASSWORD"))
+    headers = {"Accept": "application/json"}
+
+    endpoints = {
+        "assignment_groups": "sys_user_group",
+        "knowledge_articles": "kb_knowledge",
+        "users": "sys_user",
+        "incidents": "incident",
+        "requests": "sc_request"
+    }
+
+    data = {}
+
+    for key, table in endpoints.items():
+        url = f"{instance}/api/now/table/{table}?sysparm_limit=100"
+        response = requests.get(url, auth=auth, headers=headers)
+        if response.status_code == 200:
+            data[key] = response.json().get("result", [])
+        else:
+            data[key] = []
+            print(f"Error loading {key}: {response.status_code}")
+
+    # Build searchable summaries for tickets
+    data["previous_ticket_descriptions"] = []
+    for item in data.get("incidents", []) + data.get("requests", []):
+        desc = item.get("short_description", "")
+        if desc:
+            data["previous_ticket_descriptions"].append(desc.strip())
+
+    return data
+
+def query_kb_articles(query=None, permissions=None):
+    instance = os.getenv("SN_INSTANCE")
+    auth = (os.getenv("SN_USERNAME"), os.getenv("SN_PASSWORD"))
+    headers = {"Accept": "application/json"}
+
+    def fetch_articles(query_string):
+        url = f"{instance}/api/now/table/kb_knowledge"
+        params = {
+            "sysparm_query": f"active=true^workflow=published^{query_string}",
+            "sysparm_fields": "number,short_description,text",
+            "sysparm_limit": 50
+        }
+        response = requests.get(url, auth=auth, headers=headers, params=params)
+        if response.status_code == 200:
+            return [
+                {
+                    "title": a.get("short_description", "Untitled"),
+                    "content": a.get("text", ""),
+                    "number": a.get("number", "")
+                }
+                for a in response.json().get("result", []) if a.get("text")
+            ]
+        return []
+
+    if not query:
+        return fetch_articles("")
+
+    # Step 1: Try full-text query
+    full_query = f"short_descriptionLIKE{query}^ORtextLIKE{query}"
+    articles = fetch_articles(full_query)
+    if articles:
+        return articles
+
+    # Step 2: Try breaking into keywords
+    keywords = [word.strip() for word in query.split() if word.strip()]
+    if not keywords:
+        return []
+
+    keyword_query = "^OR".join([f"textLIKE{kw}" for kw in keywords])
+    return fetch_articles(keyword_query)
+
+def open_ticket(user_id, short_description, description, category="request", subcategory="software",
+                assignment_group="IT Support", ticket_type="incident"):
     instance = os.getenv("SN_INSTANCE")
     user = os.getenv("SN_USERNAME")
     password = os.getenv("SN_PASSWORD")
 
-    url = f"{instance}/api/now/table/incident"
-    headers = {"Content-Type": "application/json", "Accept": "application/json"}
-    data = {
-        "short_description": f"Issue from user {user_id}: {issue_description}",
-        "caller_id": user_id,  # this may need mapping or ServiceNow user ID
+    url = f"{instance}/api/now/table/{ticket_type}"
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+    payload = {
+        "caller_id": user_id,
+        "short_description": short_description,
+        "description": description,
+        "category": category,
+        "subcategory": subcategory,
+        "assignment_group": assignment_group,
+        "impact": "3",
         "urgency": "3",
-        "impact": "3"
+        "priority": "4"
     }
 
-    response = requests.post(url, auth=HTTPBasicAuth(user, password), headers=headers, json=data)
+    response = requests.post(url, auth=HTTPBasicAuth(user, password), headers=headers, json=payload)
 
     if response.status_code == 201:
-        return {"result": f"Ticket created: {response.json()['result']['number']}"}
-    else:
-        return {"result": f"Failed to create ticket: {response.status_code} {response.text}"}
+        result = response.json()["result"]
+        number = (
+            result.get("number") or
+            result.get("request_number") or
+            result.get("task_number") or
+            result.get("u_number") or
+            "UNKNOWN"
+        )
+        sys_id = result.get("sys_id", "")
+        link = f"{instance}/nav_to.do?uri={ticket_type}.do?sys_id={sys_id}"
+        return {
+            "result": number,
+            "type": ticket_type,
+            "link": link,
+            "summary": f"{ticket_type.capitalize()} {number} created for {short_description}"
+        }
 
+    return {
+        "result": "Error",
+        "type": ticket_type,
+        "link": "",
+        "summary": f"Failed to create {ticket_type}: {response.text}"
+    }
 
 def close_ticket(user_id):
     return {"result": f"Ticket closed for {user_id}."}
+
+def get_user_context(user_id):
+    instance = os.getenv("SN_INSTANCE")
+    auth = (os.getenv("SN_USERNAME"), os.getenv("SN_PASSWORD"))
+    headers = {"Accept": "application/json"}
+
+    context = {}
+
+    # Get user profile
+    user_url = f"{instance}/api/now/table/sys_user?sysparm_query=user_name={user_id}"
+    r = requests.get(user_url, auth=auth, headers=headers)
+    if r.status_code == 200 and r.json().get("result"):
+        user = r.json()["result"][0]
+        context["user"] = {
+            "name": user.get("name"),
+            "email": user.get("email"),
+            "title": user.get("title"),
+            "department": user.get("department", {}).get("display_value", ""),
+            "sys_id": user.get("sys_id")
+        }
+
+    # Get devices owned by the user
+    asset_url = f"{instance}/api/now/table/cmdb_ci_computer?sysparm_query=assigned_to={context['user']['sys_id']}"
+    r = requests.get(asset_url, auth=auth, headers=headers)
+    if r.status_code == 200:
+        context["devices"] = [a["name"] for a in r.json().get("result", [])]
+
+    # Get user's open incidents and requests
+    incidents_url = f"{instance}/api/now/table/incident?sysparm_query=caller_id={context['user']['sys_id']}"
+    requests_url = f"{instance}/api/now/table/sc_request?sysparm_query=requested_for={context['user']['sys_id']}"
+    context["open_tickets"] = []
+
+    for url in [incidents_url, requests_url]:
+        r = requests.get(url, auth=auth, headers=headers)
+        if r.status_code == 200:
+            context["open_tickets"].extend(r.json().get("result", []))
+
+    return context
