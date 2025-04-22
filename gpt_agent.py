@@ -7,6 +7,26 @@ from servicenow_api import open_ticket, get_user_context
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# 🔍 Detect ticket inquiries
+def format_ticket_list(entries, label):
+    if not entries:
+        return f"No open {label.lower()} found."
+    lines = [f"**Open {label}**"]
+    for e in entries:
+        line = f"{e['number']} | {e['short_description']} | Opened: {e['opened_at'][:10]} | Caller: {e.get('caller', e.get('assigned_to', e.get('requested_for', 'N/A')))}"
+        lines.append(line)
+    return "\n".join(lines)
+
+def detect_open_ticket_request(question, user_id):
+    q = question.lower()
+    if "open incidents" in q:
+        return format_ticket_list(get_user_open_incidents(user_id), "Incidents")
+    elif "open requests" in q:
+        return format_ticket_list(get_user_open_requests(user_id), "Requests")
+    elif "open tasks" in q:
+        return format_ticket_list(get_user_open_tasks(user_id), "Tasks")
+    return None
+
 # Ticket routing keywords by category
 TICKET_KEYWORDS = {
     "access_issue": ["access", "permission", "denied", "role", "admin rights", "shared document", "restore access"],
@@ -108,14 +128,19 @@ def detect_ticket_category(question):
         return None
 
 def generate_response(user_id, question, kb_articles, issue_log, confirm_ticket=False, stored_metadata=None):
+    # Handle ticket status queries first
+    ticket_status_response = detect_open_ticket_request(question, user_id)
+    if ticket_status_response:
+        return ticket_status_response, None
+
+    track_issue(issue_log, user_id, question)
+
     st.sidebar.markdown("### 📚 KB Articles Sent to GPT")
     if not kb_articles:
         st.sidebar.warning("⚠️ No knowledge base articles were found!")
     else:
         for a in kb_articles:
             st.sidebar.write(f"- {a['title']}")
-
-    track_issue(issue_log, user_id, question)
 
     numbered_articles = []
     context = ""
@@ -125,7 +150,6 @@ def generate_response(user_id, question, kb_articles, issue_log, confirm_ticket=
         numbered_articles.append(f"{i}. {title}")
         context += f"\n\n[{i}] {title}\n{content.strip()}"
 
-    # ✨ Smarter prompt that summarizes and interprets, doesn't quote
     prompt = f"""You are an IT support assistant. The user has a question, and you must answer ONLY using the information below from the company's internal knowledge base.
 
 DO NOT guess or use general knowledge. Instead, interpret the relevant content from these articles and summarize the correct answer for the user.

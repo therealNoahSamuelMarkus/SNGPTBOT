@@ -166,3 +166,90 @@ def get_user_context(user_id):
             context["open_tickets"].extend(r.json().get("result", []))
 
     return context
+def get_user_open_incidents(user_id):
+    instance = os.getenv("SN_INSTANCE")
+    auth = (os.getenv("SN_USERNAME"), os.getenv("SN_PASSWORD"))
+    headers = {"Accept": "application/json"}
+
+    # Build query: incidents assigned to the user and not resolved/closed
+    query = f"assigned_to.user_name={user_id}^stateNOT IN6,7"  # 6 = Resolved, 7 = Closed
+
+    url = f"{instance}/api/now/table/incident"
+    params = {
+        "sysparm_query": query,
+        "sysparm_fields": "number,short_description,opened_at,caller_id",
+        "sysparm_limit": 20
+    }
+
+    response = requests.get(url, auth=auth, headers=headers, params=params)
+    if response.status_code == 200:
+        incidents = response.json().get("result", [])
+        return [
+            {
+                "number": inc.get("number"),
+                "short_description": inc.get("short_description", ""),
+                "opened_at": inc.get("opened_at", ""),
+                "caller": inc.get("caller_id", {}).get("display_value", "")
+            }
+            for inc in incidents
+        ]
+    else:
+        print("Error fetching incidents:", response.status_code, response.text)
+        return []
+def get_user_open_tasks(user_id):
+    instance = os.getenv("SN_INSTANCE")
+    auth = (os.getenv("SN_USERNAME"), os.getenv("SN_PASSWORD"))
+    headers = {"Accept": "application/json"}
+
+    query = f"assigned_to.user_name={user_id}^stateNOT IN3"  # 3 = Closed
+    url = f"{instance}/api/now/table/sc_task"
+    params = {
+        "sysparm_query": query,
+        "sysparm_fields": "number,short_description,opened_at,assigned_to",
+        "sysparm_limit": 20
+    }
+
+    response = requests.get(url, auth=auth, headers=headers, params=params)
+    if response.status_code == 200:
+        tasks = response.json().get("result", [])
+        return [
+            {
+                "number": task.get("number"),
+                "short_description": task.get("short_description", ""),
+                "opened_at": task.get("opened_at", ""),
+                "assigned_to": task.get("assigned_to", {}).get("display_value", "")
+            }
+            for task in tasks
+        ]
+    else:
+        print("Error fetching tasks:", response.status_code, response.text)
+        return []
+
+def get_user_open_requests(user_id):
+    instance = os.getenv("SN_INSTANCE")
+    auth = (os.getenv("SN_USERNAME"), os.getenv("SN_PASSWORD"))
+    headers = {"Accept": "application/json"}
+
+    query = f"requested_for.user_name={user_id}^stateNOT IN3"  # 3 = Closed
+    url = f"{instance}/api/now/table/sc_request"
+    params = {
+        "sysparm_query": query,
+        "sysparm_fields": "number,short_description,requested_for,opened_at",
+        "sysparm_limit": 20
+    }
+
+    response = requests.get(url, auth=auth, headers=headers, params=params)
+    if response.status_code == 200:
+        requests_list = response.json().get("result", [])
+        return [
+            {
+                "number": r.get("number"),
+                "short_description": r.get("short_description", ""),
+                "opened_at": r.get("opened_at", ""),
+                "requested_for": r.get("requested_for", {}).get("display_value", "")
+            }
+            for r in requests_list
+        ]
+    else:
+        print("Error fetching requests:", response.status_code, response.text)
+        return []
