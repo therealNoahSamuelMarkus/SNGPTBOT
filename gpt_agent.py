@@ -2,7 +2,7 @@ import os
 from openai import OpenAI
 from dotenv import load_dotenv
 import streamlit as st
-from servicenow_api import open_ticket, get_user_context
+from servicenow_api import open_ticket, get_user_context, get_user_open_incidents, get_user_open_requests, get_user_open_tasks
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))

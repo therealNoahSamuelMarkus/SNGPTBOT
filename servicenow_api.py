@@ -166,6 +166,7 @@ def get_user_context(user_id):
             context["open_tickets"].extend(r.json().get("result", []))
 
     return context
+
 def get_user_open_incidents(user_id):
     instance = os.getenv("SN_INSTANCE")
     auth = (os.getenv("SN_USERNAME"), os.getenv("SN_PASSWORD"))
@@ -196,6 +197,7 @@ def get_user_open_incidents(user_id):
     else:
         print("Error fetching incidents:", response.status_code, response.text)
         return []
+
 def get_user_open_tasks(user_id):
     instance = os.getenv("SN_INSTANCE")
     auth = (os.getenv("SN_USERNAME"), os.getenv("SN_PASSWORD"))
