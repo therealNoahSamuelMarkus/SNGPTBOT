@@ -2,18 +2,34 @@ import os
 from openai import OpenAI
 from dotenv import load_dotenv
 import streamlit as st
-from servicenow_api import open_ticket, get_user_context, get_user_open_incidents, get_user_open_requests, get_user_open_tasks
-
+from servicenow_api import *
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # 🔍 Detect ticket inquiries
+def detect_password_reset_intent(question):
+    """Detects if the user's question is about needing a password reset or login help."""
+    q = question.lower()
+    triggers = [
+        "forgot my password",
+        "reset my password",
+        "i need to reset my password",
+        "help me reset my password",
+        "can't log in",
+        "can’t login",
+        "unable to login",
+        "i'm locked out",
+        "locked out of my account",
+        "lost my password"
+    ]
+    return any(trigger in q for trigger in triggers)
+
 def format_ticket_list(entries, label):
     if not entries:
         return f"No open {label.lower()} found."
     lines = [f"**Open {label}**"]
     for e in entries:
-        line = f"{e['number']} | {e['short_description']} | Opened: {e['opened_at'][:10]} | Caller: {e.get('caller', e.get('assigned_to', e.get('requested_for', 'N/A')))}"
+        line = f"{e['number']} | {e['short_description']} | Opened: {e['opened_at'][:10]} | Caller: {e.get('caller', e.get('assigned_to', e.get('requested_for', 'N/A')))} \n"
         lines.append(line)
     return "\n".join(lines)
 
@@ -128,6 +144,19 @@ def detect_ticket_category(question):
         return None
 
 def generate_response(user_id, question, kb_articles, issue_log, confirm_ticket=False, stored_metadata=None):
+    # 🔐 Check password reset first
+    if detect_password_reset_intent(question):
+        answer = (
+            f"Hi {user_id}, it looks like you're having trouble with your password or login. "
+            "You can press the **Reset Password** button below to begin the reset process."
+        )
+        return answer, { "type": "password_reset" }
+
+    # 🧾 Check for open ticket listing next
+    ticket_status_response = detect_open_ticket_request(question, user_id)
+    if ticket_status_response:
+        return ticket_status_response, None
+
     # Handle ticket status queries first
     ticket_status_response = detect_open_ticket_request(question, user_id)
     if ticket_status_response:

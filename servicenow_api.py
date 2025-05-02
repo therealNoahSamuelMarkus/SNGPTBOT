@@ -1,6 +1,53 @@
 import os
 import requests
 from requests.auth import HTTPBasicAuth
+from dotenv import load_dotenv
+
+load_dotenv()
+
+instance = os.getenv("SN_INSTANCE")
+auth = (os.getenv("SN_USERNAME"), os.getenv("SN_PASSWORD"))
+headers = {"Accept": "application/json"}
+
+def get_user_phone_number(user_id):
+    url = f"{instance}/api/now/table/sys_user"
+    params = {
+        "sysparm_query": f"user_name={user_id}",
+        "sysparm_fields": "mobile_phone",
+        "sysparm_limit": 1
+    }
+    response = requests.get(url, auth=auth, headers=headers, params=params)
+    if response.status_code == 200:
+        result = response.json().get("result", [])
+        if result and result[0].get("mobile_phone"):
+            return result[0]["mobile_phone"]
+    return None
+
+def reset_user_password(user_id):
+    url = f"{instance}/api/now/table/sys_user"
+    params = {
+        "sysparm_query": f"user_name={user_id}",
+        "sysparm_limit": 1
+    }
+    response = requests.get(url, auth=auth, headers=headers, params=params)
+
+    if response.status_code == 200:
+        results = response.json().get("result", [])
+        if not results:
+            return None
+        user_sys_id = results[0]["sys_id"]
+
+        new_password = "TempPass" + os.urandom(4).hex()  # Generate temp password
+
+        update_url = f"{instance}/api/now/table/sys_user/{user_sys_id}"
+        payload = {
+            "password": new_password
+        }
+        update_response = requests.patch(update_url, json=payload, auth=auth, headers={"Content-Type": "application/json"})
+
+        if update_response.status_code in (200, 204):
+            return new_password
+    return None
 
 def load_servicenow_data():
     instance = os.getenv("SN_INSTANCE")

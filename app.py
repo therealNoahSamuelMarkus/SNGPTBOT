@@ -1,5 +1,5 @@
 import streamlit as st
-from servicenow_api import query_kb_articles, load_servicenow_data, get_user_context
+from servicenow_api import query_kb_articles, load_servicenow_data, get_user_context, get_user_phone_number, reset_user_password
 from gpt_agent import generate_response, create_ticket_from_intent
 
 st.set_page_config(page_title="IT Assistant", layout="centered")
@@ -28,6 +28,10 @@ if "show_ticket_prompt" not in st.session_state:
     st.session_state.show_ticket_prompt = False
 if "servicenow_data" not in st.session_state:
     st.session_state.servicenow_data = load_servicenow_data()
+if "password_reset_mode" not in st.session_state:
+    st.session_state.password_reset_mode = False
+if "password_reset_attempts" not in st.session_state:
+    st.session_state.password_reset_attempts = 0
 
 # Step 1: User login
 user_id = st.text_input("Enter your username to begin:", value="", key="username_input")
@@ -54,7 +58,7 @@ if st.session_state.user_context_loaded:
 
     if st.button("Ask GPT"):
         if question.strip():
-            st.session_state.kb_articles = query_kb_articles(query=question)  # 🔥 FETCH RELEVANT ARTICLES
+            st.session_state.kb_articles = query_kb_articles(query=question)
 
             response, metadata = generate_response(
                 user_id,
@@ -70,10 +74,16 @@ if st.session_state.user_context_loaded:
             st.session_state.ticket_metadata = metadata
             st.session_state.show_ticket_prompt = True
 
-# Step 3: Display response + ticket prompt
+# Step 3: Display response + password/ticket prompt
 if st.session_state.get("last_response") and st.session_state.get("show_ticket_prompt"):
     st.markdown("### 💡 GPT Response")
     st.markdown(st.session_state.last_response)
+
+    if st.session_state.ticket_metadata and st.session_state.ticket_metadata.get("type") == "password_reset":
+        st.warning("You requested a password reset.")
+        if st.button("🔐 Reset Password"):
+            st.session_state.password_reset_mode = True
+            st.session_state.show_ticket_prompt = False
 
     col1, col2 = st.columns(2)
     with col1:
@@ -88,7 +98,30 @@ if st.session_state.get("last_response") and st.session_state.get("show_ticket_p
             st.session_state.pending_ticket = True
             st.session_state.show_ticket_prompt = False
 
-# Step 4: Ticket creation UI
+# Step 4: Password reset logic
+if st.session_state.password_reset_mode:
+    st.subheader("🔐 Verify Phone Number to Reset Password")
+    phone_input = st.text_input("Enter the phone number associated with your account:")
+
+    if st.button("Verify Phone"):
+        correct_phone = get_user_phone_number(user_id)
+
+        if phone_input.strip() == correct_phone:
+            new_password = reset_user_password(user_id)
+            if new_password:
+                st.success(f"✅ Your password has been reset! New Password: `{new_password}`")
+            else:
+                st.error("❌ Could not reset your password at this time.")
+            st.session_state.password_reset_mode = False
+        else:
+            st.session_state.password_reset_attempts += 1
+            if st.session_state.password_reset_attempts >= 2:
+                st.error("❌ Incorrect phone entered twice. Exiting.")
+                st.session_state.password_reset_mode = False
+            else:
+                st.warning("⚠️ Incorrect phone. Please try again.")
+
+# Step 5: Ticket creation UI
 if st.session_state.pending_ticket and st.session_state.ticket_metadata:
     st.markdown("### 📝 Confirm Ticket Details")
     sd = st.text_input("Short Description", st.session_state.ticket_metadata.get("short_description", ""))
@@ -117,7 +150,7 @@ if st.session_state.pending_ticket and st.session_state.ticket_metadata:
         st.session_state.pending_ticket = False
         st.session_state.ticket_metadata = None
 
-# Step 5: Show chat history
+# Step 6: Show chat history
 for q, r in st.session_state.chat_history[::-1]:
     st.markdown(f"**You:** {q}")
     st.markdown(f"**IT Assistant:** {r}")
