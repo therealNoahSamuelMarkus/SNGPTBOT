@@ -18,8 +18,7 @@ Citations in Responses: The agent cites the knowledge base articles it draws fro
 
 Live in a website: Designed to live within an app in the future but will be a website for the time being
 
-**Innovation & Impact:
-**
+## Innovation & Impact:
 This could also directly benefit the company I will be working for after graduation. I have learned during my time as an intern there, the Service Desk gets tons of time wasting issues that would be answered if the user looked in our KB. I figure that if people have questions like how do I reset my network password, they could ask a GPT with KB intelligence rather than wasting the Service desk’s time and resources.
 
 
